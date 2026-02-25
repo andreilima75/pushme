@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Page;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,6 +19,8 @@ public interface SimulacaoRepository extends JpaRepository<Simulacao, Long> {
     List<Simulacao> findByCliente(Cliente cliente);
 
     List<Simulacao> findByClienteId(Long clienteId);
+
+    Page<Simulacao> findByClienteId(Long clienteId, Pageable pageable);
 
     List<Simulacao> findByDataHoraBetween(LocalDateTime inicio, LocalDateTime fim);
 
