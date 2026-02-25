@@ -35,23 +35,11 @@ public class ClienteController {
         return ResponseEntity.ok(clienteService.buscarPorId(id));
     }
 
-    @GetMapping("/cpf/{cpf}")
-    public ResponseEntity<Cliente> buscarPorCpf(@PathVariable String cpf) {
-        return ResponseEntity.ok(clienteService.buscarPorCpf(cpf));
-    }
-
     @PutMapping("/{id}")
     public ResponseEntity<Cliente> atualizarCliente(
             @PathVariable Long id,
             @Valid @RequestBody Cliente cliente) {
         return ResponseEntity.ok(clienteService.atualizarCliente(id, cliente));
-    }
-
-    @PatchMapping("/{id}")
-    public ResponseEntity<Cliente> atualizarParcial(
-            @PathVariable Long id,
-            @RequestBody Cliente cliente) {
-        return ResponseEntity.ok(clienteService.atualizarClienteParcial(id, cliente));
     }
 
     @DeleteMapping("/{id}")
@@ -66,13 +54,4 @@ public class ClienteController {
         clienteService.deletarTodos();
     }
 
-    @GetMapping("/{id}/exists")
-    public ResponseEntity<Boolean> clienteExiste(@PathVariable Long id) {
-        return ResponseEntity.ok(clienteService.clienteExiste(id));
-    }
-
-    @GetMapping("/count")
-    public ResponseEntity<Long> contarClientes() {
-        return ResponseEntity.ok(clienteService.contarClientes());
-    }
 }

@@ -154,60 +154,6 @@ public class SimulacaoController {
                 .body(sb.toString());
     }
 
-    @GetMapping(value = "/cliente/{clienteId}/export/csv-compact", produces = "text/csv")
-    public ResponseEntity<String> exportarCsvCompacto(@PathVariable Long clienteId) {
-        log.info("Exportando simulações do cliente ID: {} em formato CSV compacto", clienteId);
-
-        if (!clienteRepository.existsById(clienteId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Cliente não encontrado com ID: " + clienteId
-            );
-        }
-
-        List<Simulacao> simulacoes = simulacaoRepository.findByClienteId(clienteId);
-
-        if (simulacoes.isEmpty()) {
-            return ResponseEntity.noContent().build();
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("ID;DataHora;ValorSolicitado;ValorGarantia;Meses;TaxaJuros\n");
-
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
-
-        for (Simulacao sim : simulacoes) {
-            sb.append(sim.getId()).append(";")
-                    .append(sim.getDataHora().format(formatter)).append(";")
-                    .append(sim.getValorSolicitado()).append(";")
-                    .append(sim.getValorGarantia()).append(";")
-                    .append(sim.getQuantidadeMeses()).append(";")
-                    .append(sim.getTaxaJurosMensal())
-                    .append("\n");
-        }
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentDispositionFormData("attachment", "simulacoes_cliente_" + clienteId + "_compact.csv");
-
-        return ResponseEntity.ok()
-                .headers(headers)
-                .contentType(MediaType.parseMediaType("text/csv"))
-                .body(sb.toString());
-    }
-
-    @GetMapping("/cliente/{clienteId}/all")
-    public List<Simulacao> listarPorClienteSemPaginacao(@PathVariable Long clienteId) {
-        log.info("Listando todas as simulações do cliente ID: {} (sem paginação)", clienteId);
-
-        if (!clienteRepository.existsById(clienteId)) {
-            throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Cliente não encontrado com ID: " + clienteId
-            );
-        }
-
-        return simulacaoRepository.findByClienteId(clienteId);
-    }
 
     @GetMapping
     public List<Simulacao> listarTodas() {

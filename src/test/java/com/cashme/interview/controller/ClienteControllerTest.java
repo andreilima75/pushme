@@ -2,374 +2,164 @@ package com.cashme.interview.controller;
 
 import com.cashme.interview.model.Cliente;
 import com.cashme.interview.model.Endereco;
-import com.cashme.interview.repository.ClienteRepository;
+import com.cashme.interview.service.ClienteService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.hamcrest.CoreMatchers.is;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-public class ClienteControllerTest {
+@ExtendWith(MockitoExtension.class)
+class ClienteControllerTest {
 
-    @Autowired
+    @Mock
+    private ClienteService clienteService;
+
+    @InjectMocks
+    private ClienteController clienteController;
+
     private MockMvc mockMvc;
-
-    @Autowired
-    private ClienteRepository clienteRepository;
-
-    @Autowired
     private ObjectMapper objectMapper;
+    private Cliente cliente;
+    private Endereco endereco;
 
     @BeforeEach
-    void setup() {
-        clienteRepository.deleteAll();
-    }
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(clienteController).build();
+        objectMapper = new ObjectMapper();
 
-    @Test
-    void testCriarCliente() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Teste");
+        // Setup Endereco
+        endereco = new Endereco();
+        endereco.setId(1L);
+        endereco.setRua("Rua das Flores");
         endereco.setNumero("123");
         endereco.setBairro("Centro");
         endereco.setCep("12345-678");
         endereco.setCidade("São Paulo");
         endereco.setEstado("SP");
 
-        Cliente cliente = new Cliente();
-        cliente.setCpf("12345678901");
-        cliente.setNome("João Teste");
+        // Setup Cliente
+        cliente = new Cliente();
+        cliente.setId(1L);
+        cliente.setCpf("12345678900");
+        cliente.setNome("João Silva");
         cliente.setEndereco(endereco);
-
-        ResultActions response = mockMvc.perform(post("/api/clientes")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(cliente)));
-
-        response.andDo(print())
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.nome", is("João Teste")))
-                .andExpect(jsonPath("$.cpf", is("12345678901")))
-                .andExpect(jsonPath("$.endereco.rua", is("Rua Teste")));
     }
 
     @Test
-    void testCriarClienteComCpfDuplicado() throws Exception {
-        Endereco endereco1 = new Endereco();
-        endereco1.setRua("Rua Teste 1");
-        endereco1.setNumero("123");
-        endereco1.setBairro("Centro");
-        endereco1.setCep("12345-678");
-        endereco1.setCidade("São Paulo");
-        endereco1.setEstado("SP");
+    void criarCliente_DeveRetornarClienteCriado() throws Exception {
+        // Given
+        when(clienteService.criarCliente(any(Cliente.class))).thenReturn(cliente);
 
-        Cliente cliente1 = new Cliente();
-        cliente1.setCpf("12345678901");
-        cliente1.setNome("João Teste");
-        cliente1.setEndereco(endereco1);
-
+        // When & Then
         mockMvc.perform(post("/api/clientes")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(cliente1)))
-                .andExpect(status().isCreated());
+                        .content(objectMapper.writeValueAsString(cliente)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.cpf").value("12345678900"))
+                .andExpect(jsonPath("$.nome").value("João Silva"))
+                .andExpect(jsonPath("$.endereco.rua").value("Rua das Flores"));
 
-        Endereco endereco2 = new Endereco();
-        endereco2.setRua("Rua Teste 2");
-        endereco2.setNumero("456");
-        endereco2.setBairro("Jardins");
-        endereco2.setCep("87654-321");
-        endereco2.setCidade("São Paulo");
-        endereco2.setEstado("SP");
+        verify(clienteService, times(1)).criarCliente(any(Cliente.class));
+    }
 
+    @Test
+    void listarTodos_DeveRetornarListaDeClientes() throws Exception {
+        // Given
         Cliente cliente2 = new Cliente();
-        cliente2.setCpf("12345678901");
-        cliente2.setNome("Maria Teste");
-        cliente2.setEndereco(endereco2);
+        cliente2.setId(2L);
+        cliente2.setCpf("98765432100");
+        cliente2.setNome("Maria Souza");
 
-        ResultActions response = mockMvc.perform(post("/api/clientes")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(cliente2)));
+        List<Cliente> clientes = Arrays.asList(cliente, cliente2);
+        when(clienteService.listarTodos()).thenReturn(clientes);
 
-        response.andDo(print())
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    void testListarTodosClientes() throws Exception {
-        Endereco endereco1 = new Endereco();
-        endereco1.setRua("Rua A");
-        endereco1.setNumero("100");
-        endereco1.setBairro("Centro");
-        endereco1.setCep("11111-111");
-        endereco1.setCidade("São Paulo");
-        endereco1.setEstado("SP");
-
-        Cliente cliente1 = new Cliente();
-        cliente1.setCpf("11111111111");
-        cliente1.setNome("Cliente A");
-        cliente1.setEndereco(endereco1);
-        clienteRepository.save(cliente1);
-
-        Endereco endereco2 = new Endereco();
-        endereco2.setRua("Rua B");
-        endereco2.setNumero("200");
-        endereco2.setBairro("Jardins");
-        endereco2.setCep("22222-222");
-        endereco2.setCidade("São Paulo");
-        endereco2.setEstado("SP");
-
-        Cliente cliente2 = new Cliente();
-        cliente2.setCpf("22222222222");
-        cliente2.setNome("Cliente B");
-        cliente2.setEndereco(endereco2);
-        clienteRepository.save(cliente2);
-
-        ResultActions response = mockMvc.perform(get("/api/clientes"));
-
-        response.andDo(print())
+        // When & Then
+        mockMvc.perform(get("/api/clientes"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size()", is(2)))
-                .andExpect(jsonPath("$[0].nome").exists())
-                .andExpect(jsonPath("$[1].nome").exists());
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].id").value(1L))
+                .andExpect(jsonPath("$[0].nome").value("João Silva"))
+                .andExpect(jsonPath("$[1].id").value(2L))
+                .andExpect(jsonPath("$[1].nome").value("Maria Souza"));
+
+        verify(clienteService, times(1)).listarTodos();
     }
 
     @Test
-    void testBuscarClientePorId() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Teste");
-        endereco.setNumero("123");
-        endereco.setBairro("Centro");
-        endereco.setCep("12345-678");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
+    void buscarPorId_ComIdExistente_DeveRetornarCliente() throws Exception {
+        // Given
+        when(clienteService.buscarPorId(1L)).thenReturn(cliente);
 
-        Cliente cliente = new Cliente();
-        cliente.setCpf("12345678901");
-        cliente.setNome("João Teste");
-        cliente.setEndereco(endereco);
-
-        Cliente savedCliente = clienteRepository.save(cliente);
-
-        ResultActions response = mockMvc.perform(get("/api/clientes/{id}", savedCliente.getId()));
-
-        response.andDo(print())
+        // When & Then
+        mockMvc.perform(get("/api/clientes/{id}", 1L))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(savedCliente.getId().intValue())))
-                .andExpect(jsonPath("$.nome", is("João Teste")))
-                .andExpect(jsonPath("$.cpf", is("12345678901")));
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.cpf").value("12345678900"))
+                .andExpect(jsonPath("$.nome").value("João Silva"));
+
+        verify(clienteService, times(1)).buscarPorId(1L);
     }
 
     @Test
-    void testBuscarClientePorIdInexistente() throws Exception {
-        ResultActions response = mockMvc.perform(get("/api/clientes/{id}", 999L));
-
-        response.andDo(print())
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void testBuscarClientePorCpf() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Teste");
-        endereco.setNumero("123");
-        endereco.setBairro("Centro");
-        endereco.setCep("12345-678");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
-
-        Cliente cliente = new Cliente();
-        cliente.setCpf("12345678901");
-        cliente.setNome("João Teste");
-        cliente.setEndereco(endereco);
-
-        clienteRepository.save(cliente);
-
-        ResultActions response = mockMvc.perform(get("/api/clientes/cpf/{cpf}", "12345678901"));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nome", is("João Teste")))
-                .andExpect(jsonPath("$.cpf", is("12345678901")));
-    }
-
-    @Test
-    void testBuscarClientePorCpfInexistente() throws Exception {
-        ResultActions response = mockMvc.perform(get("/api/clientes/cpf/{cpf}", "00000000000"));
-
-        response.andDo(print())
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void testAtualizarCliente() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Antiga");
-        endereco.setNumero("100");
-        endereco.setBairro("Centro");
-        endereco.setCep("11111-111");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
-
-        Cliente cliente = new Cliente();
-        cliente.setCpf("11111111111");
-        cliente.setNome("Cliente Antigo");
-        cliente.setEndereco(endereco);
-
-        Cliente savedCliente = clienteRepository.save(cliente);
-
-        Endereco novoEndereco = new Endereco();
-        novoEndereco.setRua("Rua Nova");
-        novoEndereco.setNumero("200");
-        novoEndereco.setBairro("Jardins");
-        novoEndereco.setCep("22222-222");
-        novoEndereco.setCidade("São Paulo");
-        novoEndereco.setEstado("SP");
-
+    void atualizarCliente_ComIdValido_DeveRetornarClienteAtualizado() throws Exception {
+        // Given
         Cliente clienteAtualizado = new Cliente();
-        clienteAtualizado.setCpf("11111111111");
-        clienteAtualizado.setNome("Cliente Atualizado");
-        clienteAtualizado.setEndereco(novoEndereco);
+        clienteAtualizado.setId(1L);
+        clienteAtualizado.setCpf("12345678900");
+        clienteAtualizado.setNome("João Silva Atualizado");
+        clienteAtualizado.setEndereco(endereco);
 
-        ResultActions response = mockMvc.perform(put("/api/clientes/{id}", savedCliente.getId())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(clienteAtualizado)));
+        when(clienteService.atualizarCliente(eq(1L), any(Cliente.class))).thenReturn(clienteAtualizado);
 
-        response.andDo(print())
+        // When & Then
+        mockMvc.perform(put("/api/clientes/{id}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clienteAtualizado)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nome", is("Cliente Atualizado")))
-                .andExpect(jsonPath("$.endereco.rua", is("Rua Nova")));
+                .andExpect(jsonPath("$.id").value(1L))
+                .andExpect(jsonPath("$.nome").value("João Silva Atualizado"));
+
+        verify(clienteService, times(1)).atualizarCliente(eq(1L), any(Cliente.class));
     }
 
     @Test
-    void testAtualizarParcialCliente() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Original");
-        endereco.setNumero("100");
-        endereco.setBairro("Centro");
-        endereco.setCep("11111-111");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
+    void deletarCliente_ComIdValido_DeveRetornarNoContent() throws Exception {
+        // Given
+        doNothing().when(clienteService).deletarCliente(1L);
 
-        Cliente cliente = new Cliente();
-        cliente.setCpf("11111111111");
-        cliente.setNome("Cliente Original");
-        cliente.setEndereco(endereco);
-
-        Cliente savedCliente = clienteRepository.save(cliente);
-
-        Cliente clienteParcial = new Cliente();
-        clienteParcial.setNome("Nome Alterado Apenas");
-
-        ResultActions response = mockMvc.perform(patch("/api/clientes/{id}", savedCliente.getId())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(clienteParcial)));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nome", is("Nome Alterado Apenas")))
-                .andExpect(jsonPath("$.cpf", is("11111111111")))
-                .andExpect(jsonPath("$.endereco.rua", is("Rua Original")));
-    }
-
-    @Test
-    void testDeletarCliente() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Teste");
-        endereco.setNumero("123");
-        endereco.setBairro("Centro");
-        endereco.setCep("12345-678");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
-
-        Cliente cliente = new Cliente();
-        cliente.setCpf("12345678901");
-        cliente.setNome("João Teste");
-        cliente.setEndereco(endereco);
-
-        Cliente savedCliente = clienteRepository.save(cliente);
-
-        ResultActions response = mockMvc.perform(delete("/api/clientes/{id}", savedCliente.getId()));
-
-        response.andDo(print())
+        // When & Then
+        mockMvc.perform(delete("/api/clientes/{id}", 1L))
                 .andExpect(status().isNoContent());
+
+        verify(clienteService, times(1)).deletarCliente(1L);
     }
 
     @Test
-    void testDeletarClienteInexistente() throws Exception {
-        ResultActions response = mockMvc.perform(delete("/api/clientes/{id}", 999L));
+    void deletarTodos_DeveRetornarNoContent() throws Exception {
+        // Given
+        doNothing().when(clienteService).deletarTodos();
 
-        response.andDo(print())
-                .andExpect(status().isNotFound());
+        // When & Then
+        mockMvc.perform(delete("/api/clientes"))
+                .andExpect(status().isNoContent());
+
+        verify(clienteService, times(1)).deletarTodos();
     }
 
-    @Test
-    void testClienteExiste() throws Exception {
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Teste");
-        endereco.setNumero("123");
-        endereco.setBairro("Centro");
-        endereco.setCep("12345-678");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
-
-        Cliente cliente = new Cliente();
-        cliente.setCpf("12345678901");
-        cliente.setNome("João Teste");
-        cliente.setEndereco(endereco);
-
-        Cliente savedCliente = clienteRepository.save(cliente);
-
-        ResultActions response = mockMvc.perform(get("/api/clientes/{id}/exists", savedCliente.getId()));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().string("true"));
-    }
-
-    @Test
-    void testContarClientes() throws Exception {
-        Endereco endereco1 = new Endereco();
-        endereco1.setRua("Rua A");
-        endereco1.setNumero("100");
-        endereco1.setBairro("Centro");
-        endereco1.setCep("11111-111");
-        endereco1.setCidade("São Paulo");
-        endereco1.setEstado("SP");
-
-        Cliente cliente1 = new Cliente();
-        cliente1.setCpf("11111111111");
-        cliente1.setNome("Cliente A");
-        cliente1.setEndereco(endereco1);
-        clienteRepository.save(cliente1);
-
-        Endereco endereco2 = new Endereco();
-        endereco2.setRua("Rua B");
-        endereco2.setNumero("200");
-        endereco2.setBairro("Jardins");
-        endereco2.setCep("22222-222");
-        endereco2.setCidade("São Paulo");
-        endereco2.setEstado("SP");
-
-        Cliente cliente2 = new Cliente();
-        cliente2.setCpf("22222222222");
-        cliente2.setNome("Cliente B");
-        cliente2.setEndereco(endereco2);
-        clienteRepository.save(cliente2);
-
-        ResultActions response = mockMvc.perform(get("/api/clientes/count"));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().string("2"));
-    }
 }

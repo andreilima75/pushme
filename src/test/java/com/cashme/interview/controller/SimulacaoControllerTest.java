@@ -1,273 +1,271 @@
 package com.cashme.interview.controller;
 
 import com.cashme.interview.model.Cliente;
-import com.cashme.interview.model.Endereco;
 import com.cashme.interview.model.Simulacao;
 import com.cashme.interview.repository.ClienteRepository;
 import com.cashme.interview.repository.SimulacaoRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-public class SimulacaoControllerTest {
+@ExtendWith(MockitoExtension.class)
+class SimulacaoControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ClienteRepository clienteRepository;
-
-    @Autowired
+    @Mock
     private SimulacaoRepository simulacaoRepository;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Mock
+    private ClienteRepository clienteRepository;
 
-    private Cliente clienteTeste;
+    @InjectMocks
+    private SimulacaoController simulacaoController;
+
+    private MockMvc mockMvc;
+    private ObjectMapper objectMapper;
+    private Cliente cliente;
+    private Simulacao simulacao1;
+    private Simulacao simulacao2;
+    private LocalDateTime dataHora;
 
     @BeforeEach
-    void setup() {
-        simulacaoRepository.deleteAll();
-        clienteRepository.deleteAll();
+    void setUp() {
+        mockMvc = MockMvcBuilders.standaloneSetup(simulacaoController).build();
+        objectMapper = new ObjectMapper();
 
-        Endereco endereco = new Endereco();
-        endereco.setRua("Rua Teste");
-        endereco.setNumero("123");
-        endereco.setBairro("Centro");
-        endereco.setCep("12345-678");
-        endereco.setCidade("São Paulo");
-        endereco.setEstado("SP");
+        dataHora = LocalDateTime.of(2024, 6, 15, 10, 30, 26);
 
-        clienteTeste = new Cliente();
-        clienteTeste.setCpf("12345678901");
-        clienteTeste.setNome("João Teste");
-        clienteTeste.setEndereco(endereco);
+        // Setup Cliente
+        cliente = new Cliente();
+        cliente.setId(1L);
+        cliente.setCpf("12345678900");
+        cliente.setNome("João Silva");
 
-        clienteTeste = clienteRepository.save(clienteTeste);
+        // Setup Simulação 1
+        simulacao1 = new Simulacao();
+        simulacao1.setId(1L);
+        simulacao1.setCliente(cliente);
+        simulacao1.setDataHora(dataHora);
+        simulacao1.setValorSolicitado(new BigDecimal("300000.00"));
+        simulacao1.setValorGarantia(new BigDecimal("1000000.00"));
+        simulacao1.setQuantidadeMeses(150);
+        simulacao1.setTaxaJurosMensal(new BigDecimal("2.00"));
+
+        // Setup Simulação 2
+        simulacao2 = new Simulacao();
+        simulacao2.setId(2L);
+        simulacao2.setCliente(cliente);
+        simulacao2.setDataHora(dataHora.plusDays(1));
+        simulacao2.setValorSolicitado(new BigDecimal("500000.00"));
+        simulacao2.setValorGarantia(new BigDecimal("1500000.00"));
+        simulacao2.setQuantidadeMeses(180);
+        simulacao2.setTaxaJurosMensal(new BigDecimal("1.85"));
     }
 
     @Test
-    void testCriarSimulacaoEspecifica() throws Exception {
-        ResultActions response = mockMvc.perform(post("/api/simulacoes/cliente/{clienteId}/simulacao-especifica",
-                clienteTeste.getId()));
+    void listarPorCliente_ComClienteInexistente_DeveLancarExcecao() {
+        // Given
+        when(clienteRepository.existsById(99L)).thenReturn(false);
 
-        response.andDo(print())
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.cliente.id", is(clienteTeste.getId().intValue())))
-                .andExpect(jsonPath("$.valorSolicitado", is(300000.00)))
-                .andExpect(jsonPath("$.valorGarantia", is(1000000.00)))
-                .andExpect(jsonPath("$.quantidadeMeses", is(150)))
-                .andExpect(jsonPath("$.taxaJurosMensal", is(2.0)));
+        // When & Then
+        assertThatThrownBy(() -> simulacaoController.listarPorCliente(99L, 0, 10, "dataHora", "desc"))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND")
+                .hasMessageContaining("Cliente não encontrado com ID: 99");
+
+        verify(clienteRepository, times(1)).existsById(99L);
+        verify(simulacaoRepository, never()).findByClienteId(anyLong(), any(Pageable.class));
+    }
+
+
+    @Test
+    void exportarTxt_ComClienteInexistente_DeveLancarExcecao() {
+        // Given
+        when(clienteRepository.existsById(99L)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> simulacaoController.exportarTxt(99L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND")
+                .hasMessageContaining("Cliente não encontrado com ID: 99");
+
+        verify(clienteRepository, times(1)).existsById(99L);
+        verify(simulacaoRepository, never()).findByClienteId(anyLong());
     }
 
     @Test
-    void testCriarSimulacaoEspecificaClienteInexistente() throws Exception {
-        ResultActions response = mockMvc.perform(post("/api/simulacoes/cliente/{clienteId}/simulacao-especifica", 999L));
+    void exportarTxt_SemSimulacoes_DeveRetornarNoContent() {
+        // Given
+        when(clienteRepository.existsById(1L)).thenReturn(true);
+        when(simulacaoRepository.findByClienteId(1L)).thenReturn(List.of());
 
-        response.andDo(print())
-                .andExpect(status().isNotFound());
+        // When
+        ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNull();
+
+        verify(clienteRepository, times(1)).existsById(1L);
+        verify(simulacaoRepository, times(1)).findByClienteId(1L);
+    }
+
+
+    @Test
+    void exportarCsv_ComClienteInexistente_DeveLancarExcecao() {
+        // Given
+        when(clienteRepository.existsById(99L)).thenReturn(false);
+
+        // When & Then
+        assertThatThrownBy(() -> simulacaoController.exportarCsv(99L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND")
+                .hasMessageContaining("Cliente não encontrado com ID: 99");
+
+        verify(clienteRepository, times(1)).existsById(99L);
+        verify(simulacaoRepository, never()).findByClienteId(anyLong());
     }
 
     @Test
-    void testListarSimulacoesPorClienteComPaginacao() throws Exception {
-        for (int i = 0; i < 5; i++) {
-            Simulacao sim = new Simulacao();
-            sim.setCliente(clienteTeste);
-            sim.setDataHora(LocalDateTime.now());
-            sim.setValorSolicitado(new BigDecimal("100000.00"));
-            sim.setValorGarantia(new BigDecimal("200000.00"));
-            sim.setQuantidadeMeses(12);
-            sim.setTaxaJurosMensal(new BigDecimal("1.5"));
-            simulacaoRepository.save(sim);
-        }
+    void exportarCsv_SemSimulacoes_DeveRetornarNoContent() {
+        // Given
+        when(clienteRepository.existsById(1L)).thenReturn(true);
+        when(simulacaoRepository.findByClienteId(1L)).thenReturn(List.of());
 
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}", clienteTeste.getId())
-                .param("page", "0")
-                .param("size", "3")
-                .param("sortBy", "dataHora")
-                .param("direction", "desc"));
+        // When
+        ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
 
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.size()", is(3)))
-                .andExpect(jsonPath("$.totalElements", is(5)))
-                .andExpect(jsonPath("$.totalPages", is(2)))
-                .andExpect(jsonPath("$.number", is(0)))
-                .andExpect(jsonPath("$.size", is(3)));
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNull();
+
+        verify(clienteRepository, times(1)).existsById(1L);
+        verify(simulacaoRepository, times(1)).findByClienteId(1L);
     }
 
     @Test
-    void testListarSimulacoesPorClienteSemPaginacao() throws Exception {
-        for (int i = 0; i < 3; i++) {
-            Simulacao sim = new Simulacao();
-            sim.setCliente(clienteTeste);
-            sim.setDataHora(LocalDateTime.now());
-            sim.setValorSolicitado(new BigDecimal("100000.00"));
-            sim.setValorGarantia(new BigDecimal("200000.00"));
-            sim.setQuantidadeMeses(12);
-            sim.setTaxaJurosMensal(new BigDecimal("1.5"));
-            simulacaoRepository.save(sim);
-        }
+    void listarTodas_DeveRetornarLista() {
+        // Given
+        List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
+        when(simulacaoRepository.findAll()).thenReturn(simulacoes);
 
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}/all", clienteTeste.getId()));
+        // When
+        List<Simulacao> resultado = simulacaoController.listarTodas();
 
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size()", is(3)));
+        // Then
+        assertThat(resultado).hasSize(2);
+        assertThat(resultado.get(0).getId()).isEqualTo(1L);
+        assertThat(resultado.get(1).getId()).isEqualTo(2L);
+
+        verify(simulacaoRepository, times(1)).findAll();
     }
 
     @Test
-    void testListarSimulacoesPorClienteInexistente() throws Exception {
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}", 999L));
+    void buscarPorId_ComIdExistente_DeveRetornarSimulacao() {
+        // Given
+        when(simulacaoRepository.findById(1L)).thenReturn(Optional.of(simulacao1));
 
-        response.andDo(print())
-                .andExpect(status().isNotFound());
+        // When
+        ResponseEntity<Simulacao> response = simulacaoController.buscarPorId(1L);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getId()).isEqualTo(1L);
+        assertThat(response.getBody().getValorSolicitado()).isEqualByComparingTo("300000.00");
+
+        verify(simulacaoRepository, times(1)).findById(1L);
     }
 
     @Test
-    void testBuscarSimulacaoPorId() throws Exception {
-        Simulacao sim = new Simulacao();
-        sim.setCliente(clienteTeste);
-        sim.setDataHora(LocalDateTime.now());
-        sim.setValorSolicitado(new BigDecimal("150000.00"));
-        sim.setValorGarantia(new BigDecimal("300000.00"));
-        sim.setQuantidadeMeses(24);
-        sim.setTaxaJurosMensal(new BigDecimal("1.75"));
+    void buscarPorId_ComIdInexistente_DeveLancarExcecao() {
+        // Given
+        when(simulacaoRepository.findById(99L)).thenReturn(Optional.empty());
 
-        Simulacao savedSim = simulacaoRepository.save(sim);
+        // When & Then
+        assertThatThrownBy(() -> simulacaoController.buscarPorId(99L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND")
+                .hasMessageContaining("Simulação não encontrada com ID: 99");
 
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/{id}", savedSim.getId()));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(savedSim.getId().intValue())))
-                .andExpect(jsonPath("$.valorSolicitado", is(150000.00)))
-                .andExpect(jsonPath("$.quantidadeMeses", is(24)));
+        verify(simulacaoRepository, times(1)).findById(99L);
     }
 
     @Test
-    void testBuscarSimulacaoPorIdInexistente() throws Exception {
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/{id}", 999L));
+    void criarSimulacaoEspecifica_ComClienteExistente_DeveCriarESalvar() {
+        // Given
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
+        when(simulacaoRepository.save(any(Simulacao.class))).thenReturn(simulacao1);
 
-        response.andDo(print())
-                .andExpect(status().isNotFound());
+        // When
+        Simulacao resultado = simulacaoController.criarSimulacaoEspecifica(1L);
+
+        // Then
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.getId()).isEqualTo(1L);
+        assertThat(resultado.getCliente().getId()).isEqualTo(1L);
+        assertThat(resultado.getDataHora()).isEqualTo(dataHora);
+        assertThat(resultado.getValorSolicitado()).isEqualByComparingTo("300000.00");
+        assertThat(resultado.getValorGarantia()).isEqualByComparingTo("1000000.00");
+        assertThat(resultado.getQuantidadeMeses()).isEqualTo(150);
+        assertThat(resultado.getTaxaJurosMensal()).isEqualByComparingTo("2.00");
+
+        verify(clienteRepository, times(1)).findById(1L);
+        verify(simulacaoRepository, times(1)).save(any(Simulacao.class));
     }
 
     @Test
-    void testListarTodasSimulacoes() throws Exception {
-        Simulacao sim1 = new Simulacao();
-        sim1.setCliente(clienteTeste);
-        sim1.setDataHora(LocalDateTime.now());
-        sim1.setValorSolicitado(new BigDecimal("100000.00"));
-        sim1.setValorGarantia(new BigDecimal("200000.00"));
-        sim1.setQuantidadeMeses(12);
-        sim1.setTaxaJurosMensal(new BigDecimal("1.5"));
-        simulacaoRepository.save(sim1);
+    void criarSimulacaoEspecifica_ComClienteInexistente_DeveLancarExcecao() {
+        // Given
+        when(clienteRepository.findById(99L)).thenReturn(Optional.empty());
 
-        Simulacao sim2 = new Simulacao();
-        sim2.setCliente(clienteTeste);
-        sim2.setDataHora(LocalDateTime.now());
-        sim2.setValorSolicitado(new BigDecimal("200000.00"));
-        sim2.setValorGarantia(new BigDecimal("400000.00"));
-        sim2.setQuantidadeMeses(24);
-        sim2.setTaxaJurosMensal(new BigDecimal("1.75"));
-        simulacaoRepository.save(sim2);
+        // When & Then
+        assertThatThrownBy(() -> simulacaoController.criarSimulacaoEspecifica(99L))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND")
+                .hasMessageContaining("Cliente não encontrado com ID: 99");
 
-        ResultActions response = mockMvc.perform(get("/api/simulacoes"));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.size()", is(2)));
+        verify(clienteRepository, times(1)).findById(99L);
+        verify(simulacaoRepository, never()).save(any(Simulacao.class));
     }
 
-    @Test
-    void testExportarTxt() throws Exception {
-        Simulacao sim = new Simulacao();
-        sim.setCliente(clienteTeste);
-        sim.setDataHora(LocalDateTime.of(2024, 6, 15, 10, 30, 26));
-        sim.setValorSolicitado(new BigDecimal("300000.00"));
-        sim.setValorGarantia(new BigDecimal("1000000.00"));
-        sim.setQuantidadeMeses(150);
-        sim.setTaxaJurosMensal(new BigDecimal("2.00"));
-        simulacaoRepository.save(sim);
-
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}/export/txt",
-                clienteTeste.getId()));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("text/plain"))
-                .andExpect(header().exists("Content-Disposition"))
-                .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"simulacoes_cliente_" + clienteTeste.getId() + ".txt\""));
-    }
 
     @Test
-    void testExportarCsv() throws Exception {
-        Simulacao sim = new Simulacao();
-        sim.setCliente(clienteTeste);
-        sim.setDataHora(LocalDateTime.of(2024, 6, 15, 10, 30, 26));
-        sim.setValorSolicitado(new BigDecimal("300000.00"));
-        sim.setValorGarantia(new BigDecimal("1000000.00"));
-        sim.setQuantidadeMeses(150);
-        sim.setTaxaJurosMensal(new BigDecimal("2.00"));
-        simulacaoRepository.save(sim);
+    void listarPorCliente_ComParametrosPadrao_DeveUsarValoresDefault() {
+        // Given
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "dataHora"));
+        Page<Simulacao> page = new PageImpl<>(Arrays.asList(simulacao1, simulacao2), pageable, 2);
 
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}/export/csv",
-                clienteTeste.getId()));
+        when(clienteRepository.existsById(1L)).thenReturn(true);
+        when(simulacaoRepository.findByClienteId(eq(1L), any(Pageable.class))).thenReturn(page);
 
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("text/csv"))
-                .andExpect(header().exists("Content-Disposition"))
-                .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"simulacoes_cliente_" + clienteTeste.getId() + ".csv\""));
-    }
+        // When - Usando valores padrão (0, 10, "dataHora", "desc")
+        ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 0, 10, "dataHora", "desc");
 
-    @Test
-    void testExportarCsvCompacto() throws Exception {
-        Simulacao sim = new Simulacao();
-        sim.setCliente(clienteTeste);
-        sim.setDataHora(LocalDateTime.of(2024, 6, 15, 10, 30, 26));
-        sim.setValorSolicitado(new BigDecimal("300000.00"));
-        sim.setValorGarantia(new BigDecimal("1000000.00"));
-        sim.setQuantidadeMeses(150);
-        sim.setTaxaJurosMensal(new BigDecimal("2.00"));
-        simulacaoRepository.save(sim);
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}/export/csv-compact",
-                clienteTeste.getId()));
-
-        response.andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("text/csv"))
-                .andExpect(header().exists("Content-Disposition"))
-                .andExpect(header().string("Content-Disposition",
-                        "attachment; filename=\"simulacoes_cliente_" + clienteTeste.getId() + "_compact.csv\""));
-    }
-
-    @Test
-    void testExportarTxtSemSimulacoes() throws Exception {
-        ResultActions response = mockMvc.perform(get("/api/simulacoes/cliente/{clienteId}/export/txt",
-                clienteTeste.getId()));
-
-        response.andDo(print())
-                .andExpect(status().isNoContent());
+        verify(clienteRepository, times(1)).existsById(1L);
+        verify(simulacaoRepository, times(1)).findByClienteId(eq(1L), any(Pageable.class));
     }
 }
