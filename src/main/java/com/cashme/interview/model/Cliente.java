@@ -24,7 +24,7 @@ public class Cliente {
     @Column(nullable = false, length = 100)
     private String nome;
 
-    @OneToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "endereco_id", referencedColumnName = "id")
     private Endereco endereco;
 
@@ -47,13 +47,4 @@ public class Cliente {
         }
     }
 
-    public void addSimulacao(Simulacao simulacao) {
-        simulacoes.add(simulacao);
-        simulacao.setCliente(this);
-    }
-
-    public void removeSimulacao(Simulacao simulacao) {
-        simulacoes.remove(simulacao);
-        simulacao.setCliente(null);
-    }
 }

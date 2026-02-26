@@ -40,4 +40,5 @@ public class Endereco {
     @OneToOne(mappedBy = "endereco")
     @JsonIgnore
     private Cliente cliente;
+
 }

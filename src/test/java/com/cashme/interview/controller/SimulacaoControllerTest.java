@@ -50,13 +50,11 @@ class SimulacaoControllerTest {
 
         dataHora = LocalDateTime.of(2024, 6, 15, 10, 30, 26);
 
-        // Setup Cliente
         cliente = new Cliente();
         cliente.setId(1L);
         cliente.setCpf("12345678900");
         cliente.setNome("João Silva");
 
-        // Setup Simulação 1
         simulacao1 = new Simulacao();
         simulacao1.setId(1L);
         simulacao1.setCliente(cliente);
@@ -66,7 +64,6 @@ class SimulacaoControllerTest {
         simulacao1.setQuantidadeMeses(150);
         simulacao1.setTaxaJurosMensal(new BigDecimal("2.00"));
 
-        // Setup Simulação 2
         simulacao2 = new Simulacao();
         simulacao2.setId(2L);
         simulacao2.setCliente(cliente);
@@ -79,16 +76,13 @@ class SimulacaoControllerTest {
 
     @Test
     void listarPorCliente_DeveRetornarPageDeSimulacoes() {
-        // Given
         Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "dataHora"));
         Page<Simulacao> page = new PageImpl<>(Arrays.asList(simulacao1, simulacao2), pageable, 2);
 
         when(simulacaoService.listarPorCliente(eq(1L), any(Pageable.class))).thenReturn(page);
 
-        // When
         ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 0, 10, "dataHora", "desc");
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSize(2);
@@ -100,16 +94,13 @@ class SimulacaoControllerTest {
 
     @Test
     void listarPorCliente_ComParametrosPersonalizados_DeveCriarPageableCorreto() {
-        // Given
         Pageable pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.ASC, "valorSolicitado"));
         Page<Simulacao> page = new PageImpl<>(List.of(simulacao1), pageable, 1);
 
         when(simulacaoService.listarPorCliente(eq(1L), any(Pageable.class))).thenReturn(page);
 
-        // When
         ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 1, 5, "valorSolicitado", "asc");
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSize(1);
@@ -119,7 +110,6 @@ class SimulacaoControllerTest {
 
     @Test
     void exportarTxt_ComSimulacoes_DeveRetornarArquivoTxt() {
-        // Given
         List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
         String relatorioEsperado = "RELATÓRIO DE SIMULAÇÕES\n" +
                 "========================\n\n" +
@@ -130,10 +120,8 @@ class SimulacaoControllerTest {
         when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
         when(simulacaoService.gerarRelatorioTxt(simulacoes)).thenReturn(relatorioEsperado);
 
-        // When
         ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
         assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
@@ -146,13 +134,10 @@ class SimulacaoControllerTest {
 
     @Test
     void exportarTxt_SemSimulacoes_DeveRetornarNoContent() {
-        // Given
         when(simulacaoService.buscarPorClienteId(1L)).thenReturn(List.of());
 
-        // When
         ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(response.getBody()).isNull();
 
@@ -162,7 +147,6 @@ class SimulacaoControllerTest {
 
     @Test
     void exportarCsv_ComSimulacoes_DeveRetornarArquivoCsv() {
-        // Given
         List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
         String relatorioEsperado = "ID,Data,Hora,ValorSolicitado,ValorGarantia,Meses,TaxaJuros,ClienteID,ClienteNome,ClienteCPF\n" +
                 "1,15/06/2024,10:30:26,300000.00,1000000.00,150,2.00,1,\"João Silva\",12345678900\n" +
@@ -171,10 +155,8 @@ class SimulacaoControllerTest {
         when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
         when(simulacaoService.gerarRelatorioCsv(simulacoes)).thenReturn(relatorioEsperado);
 
-        // When
         ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("text/csv"));
         assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
@@ -187,13 +169,10 @@ class SimulacaoControllerTest {
 
     @Test
     void exportarCsv_SemSimulacoes_DeveRetornarNoContent() {
-        // Given
         when(simulacaoService.buscarPorClienteId(1L)).thenReturn(List.of());
 
-        // When
         ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(response.getBody()).isNull();
 
@@ -203,14 +182,11 @@ class SimulacaoControllerTest {
 
     @Test
     void listarTodas_DeveRetornarLista() {
-        // Given
         List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
         when(simulacaoService.listarTodas()).thenReturn(simulacoes);
 
-        // When
         List<Simulacao> resultado = simulacaoController.listarTodas();
 
-        // Then
         assertThat(resultado).hasSize(2);
         assertThat(resultado.get(0).getId()).isEqualTo(1L);
         assertThat(resultado.get(1).getId()).isEqualTo(2L);
@@ -220,13 +196,10 @@ class SimulacaoControllerTest {
 
     @Test
     void buscarPorId_ComIdExistente_DeveRetornarSimulacao() {
-        // Given
         when(simulacaoService.buscarPorId(1L)).thenReturn(simulacao1);
 
-        // When
         ResponseEntity<Simulacao> response = simulacaoController.buscarPorId(1L);
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getId()).isEqualTo(1L);
@@ -237,13 +210,10 @@ class SimulacaoControllerTest {
 
     @Test
     void criarSimulacaoEspecifica_ComClienteExistente_DeveCriarESalvar() {
-        // Given
         when(simulacaoService.criarSimulacaoEspecifica(1L)).thenReturn(simulacao1);
 
-        // When
         Simulacao resultado = simulacaoController.criarSimulacaoEspecifica(1L);
 
-        // Then
         assertThat(resultado).isNotNull();
         assertThat(resultado.getId()).isEqualTo(1L);
         assertThat(resultado.getCliente().getId()).isEqualTo(1L);
@@ -258,16 +228,13 @@ class SimulacaoControllerTest {
 
     @Test
     void listarPorCliente_ComParametrosPadrao_DeveUsarValoresDefault() {
-        // Given
         Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "dataHora"));
         Page<Simulacao> page = new PageImpl<>(Arrays.asList(simulacao1, simulacao2), pageable, 2);
 
         when(simulacaoService.listarPorCliente(eq(1L), any(Pageable.class))).thenReturn(page);
 
-        // When - Usando valores padrão (0, 10, "dataHora", "desc")
         ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 0, 10, "dataHora", "desc");
 
-        // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         verify(simulacaoService, times(1)).listarPorCliente(eq(1L), any(Pageable.class));
@@ -275,17 +242,14 @@ class SimulacaoControllerTest {
 
     @Test
     void exportarTxt_DeveConfigurarHeadersCorretamente() {
-        // Given
         List<Simulacao> simulacoes = List.of(simulacao1);
         String relatorio = "conteúdo do relatório";
 
         when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
         when(simulacaoService.gerarRelatorioTxt(simulacoes)).thenReturn(relatorio);
 
-        // When
         ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
 
-        // Then
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
         assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("filename=\"simulacoes_cliente_1.txt\"");
@@ -293,17 +257,14 @@ class SimulacaoControllerTest {
 
     @Test
     void exportarCsv_DeveConfigurarHeadersCorretamente() {
-        // Given
         List<Simulacao> simulacoes = List.of(simulacao1);
         String relatorio = "conteúdo do CSV";
 
         when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
         when(simulacaoService.gerarRelatorioCsv(simulacoes)).thenReturn(relatorio);
 
-        // When
         ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
 
-        // Then
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("text/csv"));
         assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("filename=\"simulacoes_cliente_1.csv\"");

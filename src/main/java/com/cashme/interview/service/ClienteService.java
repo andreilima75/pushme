@@ -67,11 +67,7 @@ public class ClienteService {
         clienteExistente.setCpf(clienteAtualizado.getCpf());
         clienteExistente.setNome(clienteAtualizado.getNome());
 
-        if (clienteAtualizado.getEndereco() != null) {
-            Endereco enderecoAtualizado = clienteAtualizado.getEndereco();
-            enderecoAtualizado.setCliente(clienteExistente);
-            clienteExistente.setEndereco(enderecoAtualizado);
-        }
+        atualizaEndereco(clienteAtualizado, clienteExistente);
 
         return clienteRepository.save(clienteExistente);
     }
@@ -85,10 +81,21 @@ public class ClienteService {
         log.info("Cliente deletado com sucesso: {}", cliente.getNome());
     }
 
-    @Transactional
-    public void deletarTodos() {
-        log.warn("Deletando TODOS os clientes!");
-        clienteRepository.deleteAll();
+    private static void atualizaEndereco(Cliente clienteAtualizado, Cliente clienteExistente) {
+        if (clienteAtualizado.getEndereco() != null) {
+            if (clienteExistente.getEndereco() != null) {
+                Endereco endereco = clienteExistente.getEndereco();
+                endereco.setRua(clienteAtualizado.getEndereco().getRua());
+                endereco.setNumero(clienteAtualizado.getEndereco().getNumero());
+                endereco.setBairro(clienteAtualizado.getEndereco().getBairro());
+                endereco.setCep(clienteAtualizado.getEndereco().getCep());
+                endereco.setCidade(clienteAtualizado.getEndereco().getCidade());
+                endereco.setEstado(clienteAtualizado.getEndereco().getEstado());
+            } else {
+                Endereco novoEndereco = clienteAtualizado.getEndereco();
+                novoEndereco.setCliente(clienteExistente);
+                clienteExistente.setEndereco(novoEndereco);
+            }
+        }
     }
-
 }

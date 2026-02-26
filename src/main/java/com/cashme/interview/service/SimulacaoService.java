@@ -50,7 +50,6 @@ public class SimulacaoService {
                 ));
     }
 
-    @Transactional(readOnly = true)
     public List<Simulacao> buscarPorClienteId(Long clienteId) {
         validarClienteExistente(clienteId);
         return simulacaoRepository.findByClienteId(clienteId);

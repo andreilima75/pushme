@@ -42,7 +42,6 @@ class ClienteControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(clienteController).build();
         objectMapper = new ObjectMapper();
 
-        // Setup Endereco
         endereco = new Endereco();
         endereco.setId(1L);
         endereco.setRua("Rua das Flores");
@@ -52,7 +51,6 @@ class ClienteControllerTest {
         endereco.setCidade("São Paulo");
         endereco.setEstado("SP");
 
-        // Setup Cliente
         cliente = new Cliente();
         cliente.setId(1L);
         cliente.setCpf("12345678900");
@@ -62,10 +60,8 @@ class ClienteControllerTest {
 
     @Test
     void criarCliente_DeveRetornarClienteCriado() throws Exception {
-        // Given
         when(clienteService.criarCliente(any(Cliente.class))).thenReturn(cliente);
 
-        // When & Then
         mockMvc.perform(post("/api/clientes")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(cliente)))
@@ -80,7 +76,6 @@ class ClienteControllerTest {
 
     @Test
     void listarTodos_DeveRetornarListaDeClientes() throws Exception {
-        // Given
         Cliente cliente2 = new Cliente();
         cliente2.setId(2L);
         cliente2.setCpf("98765432100");
@@ -89,7 +84,6 @@ class ClienteControllerTest {
         List<Cliente> clientes = Arrays.asList(cliente, cliente2);
         when(clienteService.listarTodos()).thenReturn(clientes);
 
-        // When & Then
         mockMvc.perform(get("/api/clientes"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
@@ -103,10 +97,8 @@ class ClienteControllerTest {
 
     @Test
     void buscarPorId_ComIdExistente_DeveRetornarCliente() throws Exception {
-        // Given
         when(clienteService.buscarPorId(1L)).thenReturn(cliente);
 
-        // When & Then
         mockMvc.perform(get("/api/clientes/{id}", 1L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1L))
@@ -118,7 +110,6 @@ class ClienteControllerTest {
 
     @Test
     void atualizarCliente_ComIdValido_DeveRetornarClienteAtualizado() throws Exception {
-        // Given
         Cliente clienteAtualizado = new Cliente();
         clienteAtualizado.setId(1L);
         clienteAtualizado.setCpf("12345678900");
@@ -127,7 +118,6 @@ class ClienteControllerTest {
 
         when(clienteService.atualizarCliente(eq(1L), any(Cliente.class))).thenReturn(clienteAtualizado);
 
-        // When & Then
         mockMvc.perform(put("/api/clientes/{id}", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(clienteAtualizado)))
@@ -140,26 +130,12 @@ class ClienteControllerTest {
 
     @Test
     void deletarCliente_ComIdValido_DeveRetornarNoContent() throws Exception {
-        // Given
         doNothing().when(clienteService).deletarCliente(1L);
 
-        // When & Then
         mockMvc.perform(delete("/api/clientes/{id}", 1L))
                 .andExpect(status().isNoContent());
 
         verify(clienteService, times(1)).deletarCliente(1L);
-    }
-
-    @Test
-    void deletarTodos_DeveRetornarNoContent() throws Exception {
-        // Given
-        doNothing().when(clienteService).deletarTodos();
-
-        // When & Then
-        mockMvc.perform(delete("/api/clientes"))
-                .andExpect(status().isNoContent());
-
-        verify(clienteService, times(1)).deletarTodos();
     }
 
 }

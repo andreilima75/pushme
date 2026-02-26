@@ -48,10 +48,4 @@ public class ClienteController {
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deletarTodos() {
-        clienteService.deletarTodos();
-    }
-
 }
