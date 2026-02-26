@@ -2,8 +2,7 @@ package com.cashme.interview.controller;
 
 import com.cashme.interview.model.Cliente;
 import com.cashme.interview.model.Simulacao;
-import com.cashme.interview.repository.ClienteRepository;
-import com.cashme.interview.repository.SimulacaoRepository;
+import com.cashme.interview.service.SimulacaoService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,20 +11,19 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.*;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -33,10 +31,7 @@ import static org.mockito.Mockito.*;
 class SimulacaoControllerTest {
 
     @Mock
-    private SimulacaoRepository simulacaoRepository;
-
-    @Mock
-    private ClienteRepository clienteRepository;
+    private SimulacaoService simulacaoService;
 
     @InjectMocks
     private SimulacaoController simulacaoController;
@@ -83,41 +78,76 @@ class SimulacaoControllerTest {
     }
 
     @Test
-    void listarPorCliente_ComClienteInexistente_DeveLancarExcecao() {
+    void listarPorCliente_DeveRetornarPageDeSimulacoes() {
         // Given
-        when(clienteRepository.existsById(99L)).thenReturn(false);
+        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "dataHora"));
+        Page<Simulacao> page = new PageImpl<>(Arrays.asList(simulacao1, simulacao2), pageable, 2);
 
-        // When & Then
-        assertThatThrownBy(() -> simulacaoController.listarPorCliente(99L, 0, 10, "dataHora", "desc"))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404 NOT_FOUND")
-                .hasMessageContaining("Cliente não encontrado com ID: 99");
+        when(simulacaoService.listarPorCliente(eq(1L), any(Pageable.class))).thenReturn(page);
 
-        verify(clienteRepository, times(1)).existsById(99L);
-        verify(simulacaoRepository, never()).findByClienteId(anyLong(), any(Pageable.class));
+        // When
+        ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 0, 10, "dataHora", "desc");
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getContent()).hasSize(2);
+        assertThat(response.getBody().getContent().get(0).getId()).isEqualTo(1L);
+        assertThat(response.getBody().getContent().get(1).getId()).isEqualTo(2L);
+
+        verify(simulacaoService, times(1)).listarPorCliente(eq(1L), any(Pageable.class));
     }
 
+    @Test
+    void listarPorCliente_ComParametrosPersonalizados_DeveCriarPageableCorreto() {
+        // Given
+        Pageable pageable = PageRequest.of(1, 5, Sort.by(Sort.Direction.ASC, "valorSolicitado"));
+        Page<Simulacao> page = new PageImpl<>(List.of(simulacao1), pageable, 1);
+
+        when(simulacaoService.listarPorCliente(eq(1L), any(Pageable.class))).thenReturn(page);
+
+        // When
+        ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 1, 5, "valorSolicitado", "asc");
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getContent()).hasSize(1);
+
+        verify(simulacaoService, times(1)).listarPorCliente(eq(1L), any(Pageable.class));
+    }
 
     @Test
-    void exportarTxt_ComClienteInexistente_DeveLancarExcecao() {
+    void exportarTxt_ComSimulacoes_DeveRetornarArquivoTxt() {
         // Given
-        when(clienteRepository.existsById(99L)).thenReturn(false);
+        List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
+        String relatorioEsperado = "RELATÓRIO DE SIMULAÇÕES\n" +
+                "========================\n\n" +
+                "Cliente: João Silva\n" +
+                "CPF: 12345678900\n" +
+                "Total de simulações: 2\n\n";
 
-        // When & Then
-        assertThatThrownBy(() -> simulacaoController.exportarTxt(99L))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404 NOT_FOUND")
-                .hasMessageContaining("Cliente não encontrado com ID: 99");
+        when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
+        when(simulacaoService.gerarRelatorioTxt(simulacoes)).thenReturn(relatorioEsperado);
 
-        verify(clienteRepository, times(1)).existsById(99L);
-        verify(simulacaoRepository, never()).findByClienteId(anyLong());
+        // When
+        ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("filename=\"simulacoes_cliente_1.txt\"");
+        assertThat(response.getBody()).isEqualTo(relatorioEsperado);
+
+        verify(simulacaoService, times(1)).buscarPorClienteId(1L);
+        verify(simulacaoService, times(1)).gerarRelatorioTxt(simulacoes);
     }
 
     @Test
     void exportarTxt_SemSimulacoes_DeveRetornarNoContent() {
         // Given
-        when(clienteRepository.existsById(1L)).thenReturn(true);
-        when(simulacaoRepository.findByClienteId(1L)).thenReturn(List.of());
+        when(simulacaoService.buscarPorClienteId(1L)).thenReturn(List.of());
 
         // When
         ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
@@ -126,31 +156,39 @@ class SimulacaoControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(response.getBody()).isNull();
 
-        verify(clienteRepository, times(1)).existsById(1L);
-        verify(simulacaoRepository, times(1)).findByClienteId(1L);
+        verify(simulacaoService, times(1)).buscarPorClienteId(1L);
+        verify(simulacaoService, never()).gerarRelatorioTxt(anyList());
     }
 
-
     @Test
-    void exportarCsv_ComClienteInexistente_DeveLancarExcecao() {
+    void exportarCsv_ComSimulacoes_DeveRetornarArquivoCsv() {
         // Given
-        when(clienteRepository.existsById(99L)).thenReturn(false);
+        List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
+        String relatorioEsperado = "ID,Data,Hora,ValorSolicitado,ValorGarantia,Meses,TaxaJuros,ClienteID,ClienteNome,ClienteCPF\n" +
+                "1,15/06/2024,10:30:26,300000.00,1000000.00,150,2.00,1,\"João Silva\",12345678900\n" +
+                "2,16/06/2024,10:30:26,500000.00,1500000.00,180,1.85,1,\"João Silva\",12345678900\n";
 
-        // When & Then
-        assertThatThrownBy(() -> simulacaoController.exportarCsv(99L))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404 NOT_FOUND")
-                .hasMessageContaining("Cliente não encontrado com ID: 99");
+        when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
+        when(simulacaoService.gerarRelatorioCsv(simulacoes)).thenReturn(relatorioEsperado);
 
-        verify(clienteRepository, times(1)).existsById(99L);
-        verify(simulacaoRepository, never()).findByClienteId(anyLong());
+        // When
+        ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("text/csv"));
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("filename=\"simulacoes_cliente_1.csv\"");
+        assertThat(response.getBody()).isEqualTo(relatorioEsperado);
+
+        verify(simulacaoService, times(1)).buscarPorClienteId(1L);
+        verify(simulacaoService, times(1)).gerarRelatorioCsv(simulacoes);
     }
 
     @Test
     void exportarCsv_SemSimulacoes_DeveRetornarNoContent() {
         // Given
-        when(clienteRepository.existsById(1L)).thenReturn(true);
-        when(simulacaoRepository.findByClienteId(1L)).thenReturn(List.of());
+        when(simulacaoService.buscarPorClienteId(1L)).thenReturn(List.of());
 
         // When
         ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
@@ -159,15 +197,15 @@ class SimulacaoControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(response.getBody()).isNull();
 
-        verify(clienteRepository, times(1)).existsById(1L);
-        verify(simulacaoRepository, times(1)).findByClienteId(1L);
+        verify(simulacaoService, times(1)).buscarPorClienteId(1L);
+        verify(simulacaoService, never()).gerarRelatorioCsv(anyList());
     }
 
     @Test
     void listarTodas_DeveRetornarLista() {
         // Given
         List<Simulacao> simulacoes = Arrays.asList(simulacao1, simulacao2);
-        when(simulacaoRepository.findAll()).thenReturn(simulacoes);
+        when(simulacaoService.listarTodas()).thenReturn(simulacoes);
 
         // When
         List<Simulacao> resultado = simulacaoController.listarTodas();
@@ -177,13 +215,13 @@ class SimulacaoControllerTest {
         assertThat(resultado.get(0).getId()).isEqualTo(1L);
         assertThat(resultado.get(1).getId()).isEqualTo(2L);
 
-        verify(simulacaoRepository, times(1)).findAll();
+        verify(simulacaoService, times(1)).listarTodas();
     }
 
     @Test
     void buscarPorId_ComIdExistente_DeveRetornarSimulacao() {
         // Given
-        when(simulacaoRepository.findById(1L)).thenReturn(Optional.of(simulacao1));
+        when(simulacaoService.buscarPorId(1L)).thenReturn(simulacao1);
 
         // When
         ResponseEntity<Simulacao> response = simulacaoController.buscarPorId(1L);
@@ -194,28 +232,13 @@ class SimulacaoControllerTest {
         assertThat(response.getBody().getId()).isEqualTo(1L);
         assertThat(response.getBody().getValorSolicitado()).isEqualByComparingTo("300000.00");
 
-        verify(simulacaoRepository, times(1)).findById(1L);
-    }
-
-    @Test
-    void buscarPorId_ComIdInexistente_DeveLancarExcecao() {
-        // Given
-        when(simulacaoRepository.findById(99L)).thenReturn(Optional.empty());
-
-        // When & Then
-        assertThatThrownBy(() -> simulacaoController.buscarPorId(99L))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404 NOT_FOUND")
-                .hasMessageContaining("Simulação não encontrada com ID: 99");
-
-        verify(simulacaoRepository, times(1)).findById(99L);
+        verify(simulacaoService, times(1)).buscarPorId(1L);
     }
 
     @Test
     void criarSimulacaoEspecifica_ComClienteExistente_DeveCriarESalvar() {
         // Given
-        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente));
-        when(simulacaoRepository.save(any(Simulacao.class))).thenReturn(simulacao1);
+        when(simulacaoService.criarSimulacaoEspecifica(1L)).thenReturn(simulacao1);
 
         // When
         Simulacao resultado = simulacaoController.criarSimulacaoEspecifica(1L);
@@ -230,25 +253,8 @@ class SimulacaoControllerTest {
         assertThat(resultado.getQuantidadeMeses()).isEqualTo(150);
         assertThat(resultado.getTaxaJurosMensal()).isEqualByComparingTo("2.00");
 
-        verify(clienteRepository, times(1)).findById(1L);
-        verify(simulacaoRepository, times(1)).save(any(Simulacao.class));
+        verify(simulacaoService, times(1)).criarSimulacaoEspecifica(1L);
     }
-
-    @Test
-    void criarSimulacaoEspecifica_ComClienteInexistente_DeveLancarExcecao() {
-        // Given
-        when(clienteRepository.findById(99L)).thenReturn(Optional.empty());
-
-        // When & Then
-        assertThatThrownBy(() -> simulacaoController.criarSimulacaoEspecifica(99L))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("404 NOT_FOUND")
-                .hasMessageContaining("Cliente não encontrado com ID: 99");
-
-        verify(clienteRepository, times(1)).findById(99L);
-        verify(simulacaoRepository, never()).save(any(Simulacao.class));
-    }
-
 
     @Test
     void listarPorCliente_ComParametrosPadrao_DeveUsarValoresDefault() {
@@ -256,8 +262,7 @@ class SimulacaoControllerTest {
         Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "dataHora"));
         Page<Simulacao> page = new PageImpl<>(Arrays.asList(simulacao1, simulacao2), pageable, 2);
 
-        when(clienteRepository.existsById(1L)).thenReturn(true);
-        when(simulacaoRepository.findByClienteId(eq(1L), any(Pageable.class))).thenReturn(page);
+        when(simulacaoService.listarPorCliente(eq(1L), any(Pageable.class))).thenReturn(page);
 
         // When - Usando valores padrão (0, 10, "dataHora", "desc")
         ResponseEntity<Page<Simulacao>> response = simulacaoController.listarPorCliente(1L, 0, 10, "dataHora", "desc");
@@ -265,7 +270,42 @@ class SimulacaoControllerTest {
         // Then
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        verify(clienteRepository, times(1)).existsById(1L);
-        verify(simulacaoRepository, times(1)).findByClienteId(eq(1L), any(Pageable.class));
+        verify(simulacaoService, times(1)).listarPorCliente(eq(1L), any(Pageable.class));
+    }
+
+    @Test
+    void exportarTxt_DeveConfigurarHeadersCorretamente() {
+        // Given
+        List<Simulacao> simulacoes = List.of(simulacao1);
+        String relatorio = "conteúdo do relatório";
+
+        when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
+        when(simulacaoService.gerarRelatorioTxt(simulacoes)).thenReturn(relatorio);
+
+        // When
+        ResponseEntity<String> response = simulacaoController.exportarTxt(1L);
+
+        // Then
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("filename=\"simulacoes_cliente_1.txt\"");
+    }
+
+    @Test
+    void exportarCsv_DeveConfigurarHeadersCorretamente() {
+        // Given
+        List<Simulacao> simulacoes = List.of(simulacao1);
+        String relatorio = "conteúdo do CSV";
+
+        when(simulacaoService.buscarPorClienteId(1L)).thenReturn(simulacoes);
+        when(simulacaoService.gerarRelatorioCsv(simulacoes)).thenReturn(relatorio);
+
+        // When
+        ResponseEntity<String> response = simulacaoController.exportarCsv(1L);
+
+        // Then
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.parseMediaType("text/csv"));
+        assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .contains("filename=\"simulacoes_cliente_1.csv\"");
     }
 }
