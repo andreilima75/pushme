@@ -98,4 +98,19 @@ public class ClienteService {
             }
         }
     }
+
+    /**
+     * Calcula uma lista com os nomes dos clientes que moram em uma determinada cidade e estado.
+     *
+     * @param clientes lista dos clientes usados como base para o cálculo
+     * @param cidade cidade dos clientes a serem recuperados
+     * @param estado estado da cidade dos clientes a serem recuperados
+     * @return Lista com os nomes dos clientes da lista fornecida que moram na cidade e estado fornecida.
+     */
+    public List<String> calculaNomesClientesParaCidadeEstado(List<Cliente> clientes, String cidade, String estado) {
+        return clientes.stream().filter(c -> cidade.equalsIgnoreCase(c.getEndereco().getCidade())
+                && estado.equalsIgnoreCase(c.getEndereco().getEstado())).map(Cliente::getNome)
+                .toList();
+    }
+
 }
